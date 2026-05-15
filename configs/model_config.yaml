@@ -1,0 +1,33 @@
+target_variable: "salary"
+target_transformation: "cube_root"
+
+features:
+  numerical:
+    - name: "work_year"
+      min: 2020
+      max: 2025
+      default: 2025
+  
+  categorical:
+    experience_level:
+      - "EN"
+      - "MI"
+      - "SE"
+      - "EX"
+    job_title:
+      - "Data Scientist"
+      - "Machine Learning Engineer"
+      - "Data Analyst"
+    company_location:
+      - "US"
+      - "CA"
+      - "GB"
+    company_size:
+      - "S"
+      - "M"
+      - "L"
+
+model_paths:
+  pipeline: "models/rf_model_cbrt_tuned.joblib"
+  preprocessor: "models/preprocessor_cbrt.joblib"
+  selector: "models/feature_selector_cbrt.joblib"

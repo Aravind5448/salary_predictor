@@ -1,0 +1,16 @@
+[
+  "work_year",
+  "exp_level_num",
+  "company_size_num",
+  "remote_ratio",
+  "is_remote",
+  "is_full_remote",
+  "is_us",
+  "is_full_time",
+  "experience_level",
+  "employment_type",
+  "job_title",
+  "title_category",
+  "company_location",
+  "company_size"
+]

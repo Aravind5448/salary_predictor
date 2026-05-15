@@ -1,0 +1,12 @@
+app:
+  title: "AI Career Intelligence Platform"
+  page_title: "Career Intelligence"
+  page_icon: "📊"
+  layout: "wide"
+
+ui_texts:
+  predictor_title: "Salary Predictor"
+  predictor_desc: "Estimate compensation based on industry standard factors using our ML models."
+  benchmark_title: "Market Benchmarks"
+  benchmark_desc: "Analyze industry trends across different experience levels and jobs."
+  disclaimer: "Note: This is an analytical tool built for guidance. Actual compensation may vary."

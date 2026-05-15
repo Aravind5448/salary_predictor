@@ -1,0 +1,13 @@
+data_paths:
+  raw: "data/raw/"
+  processed: "data/processed/"
+  external: "data/external/"
+
+schemas:
+  expected_columns:
+    - work_year
+    - experience_level
+    - job_title
+    - company_location
+    - company_size
+    - salary_in_usd
