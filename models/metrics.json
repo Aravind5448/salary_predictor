@@ -1,8 +1,11 @@
 {
-  "train_mae": 5178.71044921875,
-  "test_mae": 8702.7001953125,
-  "test_r2": 0.9469190239906311,
-  "test_rmse": 13274.610954751179,
-  "cv_r2_mean": 0.9481542468070984,
-  "cv_r2_std": 0.0009947580633162154
+  "train_mae": 44807.84,
+  "test_mae": 44955.54,
+  "test_r2": 0.2688,
+  "test_rmse": 63732.64,
+  "cv_r2_mean": 0.4036,
+  "cv_r2_std": 0.0021,
+  "data_source": "Kaggle salaries-for-data-science-jobs",
+  "rows": 151445,
+  "features": 22
 }
