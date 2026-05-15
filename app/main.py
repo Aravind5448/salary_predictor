@@ -5,13 +5,10 @@ import numpy as np
 import json, os, sys
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, PROJ)
-from src.pipeline import group_title, group_location
-
-MODEL_PATH = os.path.join(PROJ, 'models', 'salary_pipeline.joblib')
+MODEL_PATH = os.path.join(PROJ, 'models', 'xgboost_salary.joblib')
 METRICS_PATH = os.path.join(PROJ, 'models', 'metrics.json')
 
-st.set_page_config(page_title="Salary Predictor", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Salary Predictor", page_icon="💰", layout="wide")
 
 @st.cache_resource
 def load_model():
@@ -24,85 +21,118 @@ def load_model():
 
 model, metrics = load_model()
 
-st.title("📊 AI Salary Predictor")
-st.markdown("Predict expected compensation based on role, experience, location & company factors.")
+st.title("💰 AI Salary Predictor")
+st.markdown("Predict expected annual salary (USD) based on role, experience, location & company.")
 
 mcol1, mcol2, mcol3, mcol4 = st.columns(4)
 with mcol1:
-    st.metric("Model R²", f"{metrics.get('test_r2', 'N/A'):.4f}", border=True)
+    st.metric("Accuracy (R²)", f"{metrics.get('r2', 'N/A'):.4f}", border=True)
 with mcol2:
-    st.metric("Test MAE", f"${metrics.get('test_mae', 0):,.0f}", border=True)
+    st.metric("Avg Error (MAE)", f"${metrics.get('mae', 0):,.0f}", border=True)
 with mcol3:
     st.metric("Training Data", f"{metrics.get('rows', 0):,} rows", border=True)
 with mcol4:
     st.metric("Algorithm", "XGBoost", border=True)
 
 st.divider()
-st.subheader("Enter Job Details")
+st.subheader("Job Details")
 
 col1, col2 = st.columns(2)
 with col1:
     job_title = st.text_input("Job Title", "Data Scientist",
-        help="Enter your job title. The model groups similar titles automatically.")
-    exp_level = st.selectbox("Experience Level", ["EN (Entry)", "MI (Mid)", "SE (Senior)", "EX (Executive)"])
+        help="Any title — the model extracts keywords from it.")
+    exp_level = st.selectbox("Experience Level", ["EN (Entry)", "MI (Mid)", "SE (Senior)", "EX (Executive)"],
+        help="Entry < Mid < Senior < Executive")
     emp_type = st.selectbox("Employment Type", ["Full-time", "Part-time", "Contract", "Freelance"])
     work_year = st.slider("Work Year", 2020, 2025, 2025)
-with col2:
     company_location = st.selectbox("Company Location", [
         "US", "GB", "CA", "DE", "FR", "IN", "AU", "NL", "ES", "BR",
-        "JP", "SG", "AE", "CH", "SE", "DK", "NO", "IE", "IL", "ZA"
+        "JP", "SG", "AE", "CH", "SE", "DK", "NO", "IE", "IL", "ZA",
+        "IT", "PT", "KR", "HK", "AT", "BE", "MY", "MX", "AR", "CO",
+        "PL", "CZ", "RO", "HU", "GR", "HR", "RU", "TR", "SA", "NG",
+        "KE", "EG", "MA", "TN", "Other"
     ], help="Country where the company is based.")
+with col2:
     company_size = st.selectbox("Company Size", ["Small", "Medium", "Large"])
     remote_ratio = st.select_slider("Remote Work", options=[0, 50, 100],
         format_func=lambda x: {0: "🏢 On-site", 50: "🏡 Hybrid", 100: "🌍 Remote"}[x])
+    title_group = st.selectbox("Title Category", [
+        "Data_Science_ML", "Software_Engineering", "Data_Analytics", "Data_Engineering",
+        "Management", "Executive", "Product_Design", "Research",
+        "Marketing_Sales", "Consulting", "Finance", "HR", "Other"
+    ], help="Broad category your title falls under. Auto-detected from title if left as default.")
+    kw_ml = st.checkbox("AI/ML title keywords (ml, ai, deep learning)", True)
+    kw_software = st.checkbox("Software title keywords (developer, backend, frontend)", False)
 
-predict = st.button("💰 Predict Salary", type="primary", use_container_width=True)
+# ── Buttons ──
+col_a, col_b = st.columns([1, 1])
+with col_a:
+    predict = st.button("💰 Predict Salary", type="primary", use_container_width=True)
+with col_b:
+    auto_title = st.button("🔍 Auto-detect category", use_container_width=True)
 
-# Build features for prediction
-exp_map = {"EN (Entry)": "EN", "MI (Mid)": "MI", "SE (Senior)": "SE", "EX (Executive)": "EX"}
-emp_map = {"Full-time": "FT", "Part-time": "PT", "Contract": "CT", "Freelance": "FL"}
-size_map = {"Small": "S", "Medium": "M", "Large": "L"}
+# ── Auto-detect title group ──
+def auto_group(title):
+    t = title.lower().strip()
+    if any(x in t for x in ['data scientist','machine learning','ml engineer','deep learning','ai engineer']): return 'Data_Science_ML'
+    if any(x in t for x in ['data engineer','data architect']): return 'Data_Engineering'
+    if any(x in t for x in ['data analyst','analyst','business intelligence']): return 'Data_Analytics'
+    if any(x in t for x in ['software engineer','software developer','backend','frontend','fullstack','devops','sre']): return 'Software_Engineering'
+    if 'engineer' in t: return 'Software_Engineering'
+    if any(x in t for x in ['manager','director','head','chief','vp']): return 'Management'
+    if any(x in t for x in ['chief ','cfo','cto','ceo']): return 'Executive'
+    if any(x in t for x in ['product manager','product designer','ux','ui']): return 'Product_Design'
+    if any(x in t for x in ['research','scientist']): return 'Research'
+    if any(x in t for x in ['marketing','sales']): return 'Marketing_Sales'
+    return 'Other'
 
-raw = {
-    'work_year': work_year,
-    'experience_level': exp_map[exp_level],
-    'employment_type': emp_map[emp_type],
-    'job_title': job_title,
-    'company_location': company_location,
-    'company_size': size_map[company_size],
-    'remote_ratio': remote_ratio,
-}
+if auto_title:
+    detected = auto_group(job_title)
+    title_group = detected
+    st.info(f"Detected category: **{detected}**")
 
-df = pd.DataFrame([raw])
-df['title_group'] = df['job_title'].apply(group_title)
-df['region'] = df['company_location'].apply(group_location)
-df['exp_level'] = df['experience_level'].map({'EN': 0, 'MI': 1, 'SE': 2, 'EX': 3}).fillna(1).astype(int)
-df['size_score'] = df['company_size'].map({'S': 1, 'M': 2, 'L': 3}).fillna(2).astype(int)
-df['remote_bucket'] = df['remote_ratio'].map({0: 'onsite', 50: 'hybrid', 100: 'remote'})
-df['is_us'] = (df['company_location'] == 'US').astype(int)
-df['is_ft'] = (df['employment_type'] == 'FT').astype(int)
-df['is_senior'] = (df['experience_level'].isin(['SE', 'EX'])).astype(int)
-df['is_recent'] = (df['work_year'] >= 2023).astype(int)
-for kw, col in [('data', 'title_has_data'), ('engineer', 'title_has_engineer'),
-                 ('scientist', 'title_has_scientist'), ('analyst', 'title_has_analyst'),
-                 ('manager|director|head|chief|vp', 'title_has_manager')]:
-    df[col] = df['job_title'].str.lower().str.contains(kw).astype(int)
-df['exp_senior'] = df['exp_level'] * df['is_senior']
-df['us_exp'] = df['is_us'] * df['exp_level']
-df['size_senior'] = df['size_score'] * df['is_senior']
-
-feature_cols = [
-    'work_year', 'exp_level', 'size_score', 'remote_ratio',
-    'is_us', 'is_ft', 'is_senior', 'is_recent',
-    'title_has_data', 'title_has_engineer', 'title_has_scientist',
-    'title_has_analyst', 'title_has_manager',
-    'exp_senior', 'us_exp', 'size_senior',
-    'experience_level', 'employment_type', 'title_group', 'region', 'remote_bucket', 'company_size'
-]
-input_df = df[feature_cols]
-
+# ── Predict ──
 if predict:
-    pred_log = model.predict(input_df)[0]
+    # Build feature vector matching training
+    tl = job_title.lower()
+    row = {
+        'exp_level': {'EN (Entry)': 0, 'MI (Mid)': 1, 'SE (Senior)': 2, 'EX (Executive)': 3}[exp_level],
+        'size_score': {'Small': 1, 'Medium': 2, 'Large': 3}[company_size],
+        'year_from_2020': work_year - 2020,
+        'remote_ratio': remote_ratio,
+        'is_us': 1 if company_location == 'US' else 0,
+        'is_ft': 1 if emp_type == 'Full-time' else 0,
+        'is_senior': 1 if exp_level in ['SE (Senior)', 'EX (Executive)'] else 0,
+        'is_remote': 1 if remote_ratio > 0 else 0,
+        'is_full_remote': 1 if remote_ratio == 100 else 0,
+        'kw_data': 1 if 'data' in tl else 0,
+        'kw_engineer': 1 if 'engineer' in tl else 0,
+        'kw_scientist': 1 if 'scientist' in tl else 0,
+        'kw_analyst': 1 if 'analyst' in tl else 0,
+        'kw_manager': 1 if any(x in tl for x in ['manager','director','head','chief','vp']) else 0,
+        'kw_ml': 1 if kw_ml else 0,
+        'kw_software': 1 if kw_software else 0,
+        'title_len': len(job_title),
+        'experience_level': {'EN (Entry)': 'EN', 'MI (Mid)': 'MI', 'SE (Senior)': 'SE', 'EX (Executive)': 'EX'}[exp_level],
+        'employment_type': {'Full-time': 'FT', 'Part-time': 'PT', 'Contract': 'CT', 'Freelance': 'FL'}[emp_type],
+        'title_group': title_group,
+        'company_size': {'Small': 'S', 'Medium': 'M', 'Large': 'L'}[company_size],
+        'company_location': company_location,
+    }
+
+    input_df = pd.DataFrame([row])
+
+    # One-hot encode matching training
+    cat_cols = ['experience_level', 'employment_type', 'title_group', 'company_size', 'company_location']
+    input_encoded = pd.get_dummies(input_df, columns=cat_cols, drop_first=True)
+
+    # Align columns with training using reindex (no fragmentation)
+    with open(os.path.join(PROJ, 'models', 'encoded_columns.json')) as f:
+        train_cols = json.load(f)
+
+    input_encoded = input_encoded.reindex(columns=train_cols, fill_value=0)
+
+    pred_log = model.predict(input_encoded)[0]
     pred = np.expm1(pred_log)
 
     st.divider()
@@ -124,28 +154,27 @@ if predict:
 
     with rcol2:
         st.markdown("**Your Profile:**")
-        est_exp = {'EN': 'Entry', 'MI': 'Mid', 'SE': 'Senior', 'EX': 'Executive'}
         st.markdown(f"- **Role:** {job_title}")
-        st.markdown(f"- **Level:** {est_exp[exp_map[exp_level]]} | **Type:** {employment_type}")
+        exp_labels = {'EN (Entry)': 'Entry', 'MI (Mid)': 'Mid', 'SE (Senior)': 'Senior', 'EX (Executive)': 'Executive'}
+        st.markdown(f"- **Level:** {exp_labels[exp_level]} | **Type:** {emp_type}")
         st.markdown(f"- **Location:** {company_location} | **Size:** {company_size}")
+        st.markdown(f"- **Category:** {title_group}")
         remote_labels = {0: 'On-site', 50: 'Hybrid', 100: 'Remote'}
         st.markdown(f"- **Remote:** {remote_labels[remote_ratio]}")
-        st.caption(f"Model R²: {metrics.get('test_r2', 'N/A')} | MAE: ${metrics.get('test_mae', 0):,.0f}")
+        st.caption(f"Model Info — R²: {metrics.get('r2', 'N/A')} | MAE: ${metrics.get('mae', 0):,.0f} | {metrics.get('features', 0)} features")
 
 st.divider()
 with st.expander("📋 About This Model"):
     st.markdown("""
     **Data:** [Kaggle — Salaries for Data Science Jobs](https://www.kaggle.com/datasets/adilshamim8/salaries-for-data-science-jobs)
-    - **151,445** salary records from **2020–2025**
-    - **422** job titles grouped into **12 categories**
-    - **97** countries grouped into **11 regions**
+    - **151,445** salary records from **2020–2025**, 95+ countries
+    - **422** job titles grouped into categories
 
-    **Features Used (22 total):**
-    - **Role signals**: Title keywords (data, engineer, scientist, analyst, manager)
-    - **Seniority**: Experience level + interaction features
-    - **Location**: US/Canada premium, regional groupings
-    - **Company**: Size score, remote policy
-    - **Derived**: US×Experience, Size×Seniority, keyword flags
+    **Features (127 total):**
+    - Role keywords (data, engineer, scientist, analyst, manager, ml, software)
+    - Experience level, company size, remote policy, location encoded
+    - Interaction features (US × experience, remote × seniority, etc.)
 
-    **Limitations:** Salary depends on company brand, specific skills, education, city-level location, and negotiation — which this data doesn't capture.
+    **Limitations:** Dataset is 89.5% US — non-US predictions have wider variance.
+    Salary depends on company brand, specific skills, education, and negotiation — not captured here.
     """)

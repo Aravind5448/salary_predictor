@@ -11,6 +11,12 @@ venv/
 *.egg-info/
 dist/
 build/
-data/raw/*.csv
-!models/metrics.json
-!models/feature_columns.json
+
+# Model artifacts — only specific files tracked
+catboost_info/
+*.cbm
+lightgbm_*
+salary_pipeline.joblib
+feature_config.json
+feature_sample.json
+feature_columns.json
